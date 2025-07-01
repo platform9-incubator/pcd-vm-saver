@@ -2,6 +2,7 @@ package openstack
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -215,7 +216,7 @@ func SleepVMs(ctx context.Context, serversInfo []serverSleepInfo) error {
 			defer wg.Done()
 
 			zap.S().Infof("Processing server %s with ID %s for sleep", server.Name, server.ID)
-			
+
 			// Update Server metadata with AwakeTime
 			updateOpts := servers.MetadataOpts{}
 			for key, value := range server.NewMetadata {

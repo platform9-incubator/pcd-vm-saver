@@ -43,7 +43,7 @@ func run(cmd *cobra.Command, args []string) {
 		} else {
 			client.Start()
 			client.ListenForMentions()
-			
+
 			ctx := cmd.Context()
 			if ctx == nil {
 				ctx = context.Background()
@@ -74,12 +74,13 @@ func run(cmd *cobra.Command, args []string) {
 		}
 
 		client.SendNotification(channelID, "info", "Starting AutoSleepVM task...")
-		
-		if err := vmpoll.AutoSleepVM(); err != nil {
+
+		successMsg, err := vmpoll.AutoSleepVM()
+		if err != nil {
 			client.SendNotification(channelID, "failure", "AutoSleepVM task failed: "+err.Error())
 			zap.S().Errorf("AutoSleepVM failed: %v", err)
 		} else {
-			client.SendNotification(channelID, "success", "AutoSleepVM task completed successfully")
+			client.SendNotification(channelID, "success", successMsg)
 			zap.S().Info("AutoSleepVM completed successfully")
 		}
 	})
@@ -103,12 +104,13 @@ func run(cmd *cobra.Command, args []string) {
 		}
 
 		client.SendNotification(channelID, "info", "Starting AutoAwakeVM task...")
-		
-		if err := vmpoll.AutoAwakeVM(); err != nil {
+
+		successMsg, err := vmpoll.AutoAwakeVM()
+		if err != nil {
 			client.SendNotification(channelID, "failure", "AutoAwakeVM task failed: "+err.Error())
 			zap.S().Errorf("AutoAwakeVM failed: %v", err)
 		} else {
-			client.SendNotification(channelID, "success", "AutoAwakeVM task completed successfully")
+			client.SendNotification(channelID, "success", successMsg)
 			zap.S().Info("AutoAwakeVM completed successfully")
 		}
 	})
@@ -136,12 +138,13 @@ func run(cmd *cobra.Command, args []string) {
 		}
 
 		client.SendNotification(channelID, "info", "Starting AutoSleepVM task...")
-		
-		if err := vmpoll.AutoSleepVM(); err != nil {
+
+		successMsg, err := vmpoll.AutoSleepVM()
+		if err != nil {
 			client.SendNotification(channelID, "failure", "AutoSleepVM task failed: "+err.Error())
 			zap.S().Errorf("AutoSleepVM failed: %v", err)
 		} else {
-			client.SendNotification(channelID, "success", "AutoSleepVM task completed successfully")
+			client.SendNotification(channelID, "success", successMsg)
 			zap.S().Info("AutoSleepVM completed successfully")
 		}
 	})
@@ -166,12 +169,13 @@ func run(cmd *cobra.Command, args []string) {
 		}
 
 		client.SendNotification(channelID, "info", "Starting AutoAwakeVM task...")
-		
-		if err := vmpoll.AutoAwakeVM(); err != nil {
+
+		successMsg, err := vmpoll.AutoAwakeVM()
+		if err != nil {
 			client.SendNotification(channelID, "failure", "AutoAwakeVM task failed: "+err.Error())
 			zap.S().Errorf("AutoAwakeVM failed: %v", err)
 		} else {
-			client.SendNotification(channelID, "success", "AutoAwakeVM task completed successfully")
+			client.SendNotification(channelID, "success", successMsg)
 			zap.S().Info("AutoAwakeVM completed successfully")
 		}
 	})

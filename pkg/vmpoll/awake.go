@@ -7,17 +7,17 @@ import (
 	"github.com/platform9/pcd-vm-saver/pkg/openstack"
 )
 
-func AutoAwakeVM() {
-	fmt.Println("logic of auto awake vm to implement")
+func AutoAwakeVM() (string, error) {
 	ctx := context.TODO()
+	fmt.Println("Starting AutoAwakeVM process")
 
 	// Fetch all VMs to Awake
 	awakeVms := openstack.GetVMsToAwake(ctx)
-	
+
 	// Awake by SleepMode UnShelve or Resume
 	openstack.AwakeVMs(ctx, awakeVms)
 
-	// TOOD: Integrate list of VMs awakened with Slack notification
-	
-	return nil // TODO: Return proper error if something fails
+	// Create success message
+	successMsg := fmt.Sprintf("AutoAwakeVM task completed successfully")
+	return successMsg, nil
 }

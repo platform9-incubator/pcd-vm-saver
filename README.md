@@ -83,3 +83,8 @@ sudo systemctl status pcd-vm-saver.service
 
 ### Using Teamcity Cron Job
 We can host and integrate this repo with teamcity cron job similar to our existing resource-cleanup task. Thus allowing us to host it at central location and periodically monitor VM resources `hibernate, awake`.
+
+## Testing
+You will be able to see the difference in quotas for hibernated VMs and bring back i.e wake up VMs on time. Currently integrated to `#pcd-vm-saver` channel
+
+![PCD-VM-Saver-Slack-Bot](Snapshots/Slack-VM-Saver-Integration.png)

@@ -196,6 +196,7 @@ func FetchVMsToSleep(ctx context.Context) []serverSleepInfo {
 
 				} else {
 					// If no default or custom sleep filter, skip this server
+					zap.S().Infof("Server %s with ID %s is not eligible for sleep based on custom/default sleep filter", server.Name, server.ID)
 					continue
 				}
 			}
@@ -320,7 +321,7 @@ func Quotas(ctx context.Context) Metrics {
 	return metrics
 }
 
-func GetVMStaus(ctx context.Context, serverId string) *servers.Server {
+func GetVMStatus(ctx context.Context, serverId string) *servers.Server {
 	// TODO: Add this to main init
 	// OpenStack authentication credentials
 	opts := gophercloud.AuthOptions{

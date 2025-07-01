@@ -7,16 +7,16 @@ import (
 	"strings"
 
 	"github.com/slack-go/slack"
-	"github.com/slack-go/slack/socketmode"
 	"github.com/slack-go/slack/slackevents"
+	"github.com/slack-go/slack/socketmode"
 )
 
 type SlackClient struct {
-	client   *slack.Client
-	sm       *socketmode.Client
-	botID    string
-	ctx      context.Context
-	cancel   context.CancelFunc
+	client *slack.Client
+	sm     *socketmode.Client
+	botID  string
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func NewSlackClient(appToken, botToken string) (*SlackClient, error) {
@@ -82,7 +82,6 @@ func (s *SlackClient) SendNotification(channelID, status, message string) error 
 		Color:      color,
 		Text:       message,
 		MarkdownIn: []string{"text"},
-		Footer:     "pcd-vm-saver",
 		FooterIcon: "https://platform9.io/favicon.ico",
 	}
 

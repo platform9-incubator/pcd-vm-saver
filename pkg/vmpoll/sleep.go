@@ -16,6 +16,11 @@ func AutoSleepVM() (string, error) {
 	// 1. Fetch available list of VMs with Default Sleep Filter
 	serversInfo := openstack.FetchVMsToSleep(ctx)
 
+	if len(serversInfo) == 0 {
+		zap.S().Info("No VMs found to sleep")
+		return "No VMs found to sleep", nil
+	}
+
 	// 2. Fetch current quotas
 	currentQuotas := openstack.Quotas(ctx)
 
@@ -29,13 +34,28 @@ func AutoSleepVM() (string, error) {
 	openstack.SleepVMs(ctx, serversInfo)
 
 	// Adding a minimum time wait
-	time.Sleep(15 * time.Second)
+	time.Sleep(25 * time.Second)
 
 	// 4. Fetch the status and generate the cumulative shelve VM status
 	for _, server := range serversInfo {
-		sleepState := openstack.GetVMStaus(ctx, server.ID)
-		successMsg += fmt.Sprintf("VM %s (ID: %s) - Current state: %s\n", server.Name, server.ID, sleepState.Status)
+		sleepState := openstack.GetVMStatus(ctx, server.ID)
+
+		if sleepState.Status != "SHELVED_OFFLOADED" && sleepState.Status != "SUSPENDED" {
+			for {
+				zap.S().Warnf("VM %s (ID: %s) is not in SHELVED_OFFLOADED/SUSPENDED state, current state: %s", server.Name, server.ID, sleepState.Status)
+				time.Sleep(15 * time.Second)                       // Wait before retrying
+				sleepState = openstack.GetVMStatus(ctx, server.ID) // Re-fetch the status
+				if sleepState.Status == "SHELVED_OFFLOADED" || sleepState.Status == "SUSPENDED" {
+					successMsg += fmt.Sprintf("VM %s (ID: %s) - Current state: %s\n", server.Name, server.ID, sleepState.Status)
+					break // Exit loop if the VM is shelved/suspended
+				}
+				zap.S().Infof("Retrying to check VM %s (ID: %s) status", server.Name, server.ID)
+			}
+		}
 	}
+
+	// Adding a minimum time wait
+	time.Sleep(25 * time.Second)
 
 	newQuotas := openstack.Quotas(ctx)
 	successMsg += fmt.Sprintf("Quota after sleep operations:\n")

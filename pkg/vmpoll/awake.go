@@ -2,13 +2,13 @@ package vmpoll
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/platform9/pcd-vm-saver/pkg/openstack"
+	"go.uber.org/zap"
 )
 
 func AutoAwakeVM() {
-	fmt.Println("logic of auto awake vm to implement")
+	zap.S().Infof("Triggering auto awake VMs")
 	ctx := context.TODO()
 
 	// Fetch all VMs to Awake

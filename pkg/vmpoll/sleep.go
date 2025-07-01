@@ -6,11 +6,12 @@ import (
 	"time"
 
 	"github.com/platform9/pcd-vm-saver/pkg/openstack"
+	"go.uber.org/zap"
 )
 
 func AutoSleepVM() {
 	ctx := context.TODO()
-	fmt.Println("logic of auto sleep vm to implement")
+	zap.S().Infof("Triggering auto sleep VMs")
 
 	// 1. Fetch available list of VMs with Default Sleep Filter
 	// Testing - Done

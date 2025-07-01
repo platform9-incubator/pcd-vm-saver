@@ -23,7 +23,7 @@ func AutoAwakeVM() (string, error) {
 	successMsg += "List of VMs awakened:\n"
 
 	for _, vm := range awakeVms {
-		vmStatus := openstack.GetVMStatus(ctx, vm.ID)
+		vmStatus := openstack.GetVMStaus(ctx, vm.ID)
 		successMsg += fmt.Sprintf("VM %s (ID: %s) - Current state: %s\n", vm.Name, vm.ID, vmStatus.Status)
 	}
 

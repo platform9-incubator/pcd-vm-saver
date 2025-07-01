@@ -33,8 +33,8 @@ func run(*cobra.Command, []string) {
 
 	schedule := cron.New(cron.WithChain(cron.SkipIfStillRunning(&CronSkipperLogger{})))
 
-	schedule.AddFunc("@every 1m", vmpoll.AutoSleepVM) // will hibernate/sleep clusters if there are adequate ready clusters in pool
-	schedule.AddFunc("@every 2m", vmpoll.AutoAwakeVM)
+	schedule.AddFunc("@every 15m", vmpoll.AutoSleepVM) // will hibernate/sleep clusters if there are adequate ready clusters in pool
+	schedule.AddFunc("@every 15m", vmpoll.AutoAwakeVM)
 	schedule.Start()
 	zap.S().Info("cron jobs scheduled")
 

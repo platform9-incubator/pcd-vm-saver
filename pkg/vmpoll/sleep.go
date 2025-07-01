@@ -18,7 +18,9 @@ func AutoSleepVM() {
 	serversInfo := openstack.FetchVMsToSleep(ctx)
 
 	// 2. Fetch current quotas
-	// TODO: Add this - P1 cc: @shweta
+	currentQuotas := openstack.Quotas(ctx)
+	fmt.Printf("Current Quotas: %d / %d cores, %d / %d RAM\n",
+		currentQuotas.VCPUsInUse, currentQuotas.VCPUsLimit, currentQuotas.RAMInUse, currentQuotas.RAMLimit)
 
 	// 3. Parallely Shelve/Suspend all the VMs
 	// Testing - Done

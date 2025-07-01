@@ -7,6 +7,7 @@ import (
 
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack"
+	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/quotasets"
 	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/servers"
 	"github.com/platform9/pcd-vm-saver/pkg/util"
 	"go.uber.org/zap"
@@ -34,10 +35,10 @@ type SleepState struct {
 }
 
 type Metrics struct {
-	VCPUs    int64
-	RAMMB    float64
-	DiskGB   float64
-	VolumeGB float64
+	VCPUsInUse int
+	RAMInUse   int
+	VCPUsLimit int
+	RAMLimit   int
 }
 
 func FetchVMsToSleep(ctx context.Context) []serverSleepInfo {
@@ -269,9 +270,54 @@ func SleepVMs(ctx context.Context, serversInfo []serverSleepInfo) {
 	}
 }
 
-func Quotas(ctx context.Context) {
-	// Get current openstack vCPU, RAM, Volume Storage
-	//TODO Add this logic
+func Quotas(ctx context.Context) Metrics {
+
+	var metrics Metrics
+	// TODO: Add this to main init
+	// OpenStack authentication credentials
+	opts := gophercloud.AuthOptions{
+		IdentityEndpoint: os.Getenv("OS_AUTH_URL"),
+		Username:         os.Getenv("OS_USERNAME"),
+		Password:         os.Getenv("OS_PASSWORD"),
+		DomainName:       os.Getenv("OS_USER_DOMAIN_NAME"),
+		// Either of Domain Name or Domain ID is only required not both.
+		TenantName: os.Getenv("OS_PROJECT_NAME"),
+		TenantID:   os.Getenv("OS_PROJECT_ID"),
+	}
+
+	// Authenticate
+	provider, err := openstack.AuthenticatedClient(ctx, opts)
+	if err != nil {
+		zap.S().Errorf("Authentication failed: %v", err)
+	}
+
+	computeClient, err := openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
+		Region: os.Getenv("OS_REGION_NAME"),
+	})
+	if err != nil {
+		zap.S().Errorf("Failed to create compute client: %v", err)
+		return metrics
+	}
+
+	quotaDetails, err := quotasets.GetDetail(ctx, computeClient, os.Getenv("OS_PROJECT_ID")).Extract()
+	if err != nil {
+		zap.S().Errorf("Failed to get quota details: %v", err)
+		return metrics
+	}
+
+	// Log the quota details
+	zap.S().Debugf("Quota Details: InUse RAM: %d MB, InUse VCPUs: %d, Limit RAM: %d MB, Limit VCPUs: %d",
+		quotaDetails.RAM.InUse,
+		quotaDetails.Cores.InUse,
+		quotaDetails.RAM.Limit,
+		quotaDetails.Cores.Limit)
+
+	metrics.RAMInUse = quotaDetails.RAM.InUse
+	metrics.VCPUsInUse = quotaDetails.Cores.InUse
+	metrics.RAMLimit = quotaDetails.RAM.Limit
+	metrics.VCPUsLimit = quotaDetails.Cores.Limit
+
+	return metrics
 }
 
 func GetVMStaus(ctx context.Context, serverId string) *servers.Server {

@@ -2,12 +2,14 @@
 #####################################
 bin
 build
-pcd-vm-server*
+pcd-vm-saver*
+vm-saver*
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
+RSPC*
 
 # Test binary
 *.test

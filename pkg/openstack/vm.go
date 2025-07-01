@@ -2,7 +2,6 @@ package openstack
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"time"
 
@@ -93,14 +92,14 @@ func FetchVMsToSleep(ctx context.Context) []serverSleepInfo {
 		return sleepVMs
 	}
 
-	fmt.Println("Total servers fetched:", len(serverList))
+	zap.S().Infof("Total servers fetched:", len(serverList))
 
 	// Filter servers by metadata
 	for _, server := range serverList {
 
 		// Only check those servers which have metadata
 		if len(server.Metadata) > 0 {
-			fmt.Println("Checking server:", server.Name, "with ID:", server.ID, "and Metadata:", server.Metadata)
+			zap.S().Debugf("Checking server:", server.Name, "with ID:", server.ID, "and Metadata:", server.Metadata)
 
 			// Check if OverrideSleepFilter is set to true
 			if overrideSleepVal, exists := server.Metadata[util.OverrideSleepFilter]; exists && overrideSleepVal == "true" {
@@ -365,7 +364,13 @@ func GetVMsToAwake(ctx context.Context) []serverAwakeInfo {
 
 		// Only check those servers which have metadata
 		if len(server.Metadata) > 0 {
-			fmt.Println("Checking server:", server.Name, "with ID:", server.ID, "and Metadata:", server.Metadata)
+			// stale awake timestamp
+			if server.Status == "ACTIVE" {
+				// If the server is already active, we don't need to awake it
+				zap.S().Infof("Server %s with ID %s is already active, skipping awake", server.Name, server.ID)
+				continue
+			}
+			zap.S().Debugf("Checking server:", server.Name, "with ID:", server.ID, "and Metadata:", server.Metadata)
 
 			var suspendMode bool
 			if sleepMode, exists := server.Metadata[util.SleepModeFilter]; exists && sleepMode == "true" {
@@ -381,6 +386,10 @@ func GetVMsToAwake(ctx context.Context) []serverAwakeInfo {
 					continue
 				}
 
+				// remove AwakeTimeFilter from metadata
+				metadata := server.Metadata
+				delete(metadata, util.AwakeTimeFilter)
+
 				currentTime := time.Now()
 				if currentTime.After(awakeTime) {
 					// If current time is after AwakeTime, we can consider it for awake
@@ -388,11 +397,77 @@ func GetVMsToAwake(ctx context.Context) []serverAwakeInfo {
 						Name:        server.Name,
 						ID:          server.ID,
 						SuspendMode: suspendMode,
-						NewMetadata: make(map[string]string), // No new metadata to update
+						NewMetadata: metadata, // remove AwakeTimeFilter from metadata
 					})
+				} else {
+					zap.S().Infof("Server %s with ID %s is not yet ready to awake, current time: %s, awake time: %s", server.Name, server.ID, currentTime.Format(time.RFC3339), awakeTime.Format(time.RFC3339))
 				}
 			}
 		}
 	}
 	return awakeVMs
+}
+
+func AwakeVMs(ctx context.Context, awakeVMsInfo []serverAwakeInfo) {
+	// TODO: Add this to main init
+	// OpenStack authentication credentials
+	opts := gophercloud.AuthOptions{
+		IdentityEndpoint: os.Getenv("OS_AUTH_URL"),
+		Username:         os.Getenv("OS_USERNAME"),
+		Password:         os.Getenv("OS_PASSWORD"),
+		DomainName:       os.Getenv("OS_USER_DOMAIN_NAME"),
+		// Either of Domain Name or Domain ID is only required not both.
+		TenantName: os.Getenv("OS_PROJECT_NAME"),
+		TenantID:   os.Getenv("OS_PROJECT_ID"),
+	}
+
+	// Authenticate
+	provider, err := openstack.AuthenticatedClient(ctx, opts)
+	if err != nil {
+		zap.S().Errorf("Authentication failed: %v", err)
+		return
+	}
+
+	// Create compute client
+	client, err := openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
+		Region: os.Getenv("OS_REGION_NAME"),
+	})
+	if err != nil {
+		zap.S().Errorf("Failed to create compute client: %v", err)
+		return
+	}
+
+	for _, server := range awakeVMsInfo {
+		zap.S().Infof("Processing server %s with ID %s to awake", server.Name, server.ID)
+
+		if server.SuspendMode {
+			// Resume the server if it was suspended
+			resumeRes := servers.Resume(ctx, client, server.ID)
+			if resumeRes.Err != nil {
+				zap.S().Errorf("Failed to resume server %s: %v", server.Name, resumeRes.Err)
+				continue
+			}
+		} else {
+			// Unshelve the server if it was shelved
+			unshelveRes := servers.Unshelve(ctx, client, server.ID, servers.UnshelveOpts{})
+			if unshelveRes.Err != nil {
+				zap.S().Errorf("Failed to unshelve server %s: %v", server.Name, unshelveRes.Err)
+				continue
+			}
+		}
+
+		// TODO: Can't update metadata immediately after the server is resumed/unshelve
+		// // Update metadata to remove AwakeTimeFilter
+		// updateOpts := servers.MetadataOpts{}
+		// for key, value := range server.NewMetadata {
+		// 	updateOpts[key] = value
+		// }
+		// _, err := servers.UpdateMetadata(ctx, client, server.ID, updateOpts).Extract()
+		// if err != nil {
+		// 	zap.S().Errorf("Failed to update metadata for server %s: %v", server.Name, err)
+		// 	//TODO: Add retry logic
+		// 	continue
+		// }
+		zap.S().Infof("Server %s with ID %s is scheduled to awake", server.Name, server.ID)
+	}
 }

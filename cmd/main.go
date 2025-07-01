@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/platform9/pcd-vm-saver/pkg/log"
 	"github.com/platform9/pcd-vm-saver/pkg/util"
 	"github.com/platform9/pcd-vm-saver/pkg/vmpoll"
 	"github.com/robfig/cron/v3"
@@ -72,4 +73,11 @@ func buildCmds() *cobra.Command {
 
 	rootCmd.AddCommand(versionCmd)
 	return rootCmd
+}
+
+func init() {
+	err := log.Logger()
+	if err != nil {
+		fmt.Printf("Failed to initiate logger, Error is: %s", err)
+	}
 }

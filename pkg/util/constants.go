@@ -1,5 +1,10 @@
 package util
 
+import (
+	"os"
+	"path/filepath"
+)
+
 const (
 	Version = "pcd-vm-saver version: v1.0"
 
@@ -14,6 +19,15 @@ const (
 
 	SleepModeFilter = "ram_preserve" // Consider Suspend instead of Shelve VM
 	AwakeTimeFilter = "awake_time"   // Metadata key to store awake time for the VM
+
+)
+
+// Logger Variables.
+var (
+	//Logs location: /var/log/pcd-vm-saver-logs/vm-saver.log
+	logDir, _        = os.Getwd()
+	PcdVMSaverLogDir = filepath.Join(logDir, "pcd-vm-saver-logs")
+	VMSaverLog       = filepath.Join(PcdVMSaverLogDir, "vm-saver.log")
 )
 
 /*

@@ -25,7 +25,7 @@ const (
 // Logger Variables.
 var (
 	//Logs location: /var/log/pcd-vm-saver-logs/vm-saver.log
-	logDir, _        = os.Getwd()
+	logDir, _        = os.UserHomeDir()
 	PcdVMSaverLogDir = filepath.Join(logDir, "pcd-vm-saver-logs")
 	VMSaverLog       = filepath.Join(PcdVMSaverLogDir, "vm-saver.log")
 )

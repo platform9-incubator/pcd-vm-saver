@@ -126,16 +126,16 @@ func FetchVMsToSleep(ctx context.Context) []serverSleepInfo {
 				var sleepTime, awakeTime time.Time
 
 				if serverVal == util.IndiaSleepVal {
-					// For India, sleep at 10 PM and awake at 8 AM
+					// For India, sleep at 8 PM and awake at 8:30 AM
 					// Change this for testing
-					sleepTime = time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day(), 18, 0, 0, 0, currentTime.Location())
-					awakeTime = time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day()+1, 8, 0, 0, 0, currentTime.Location())
+					sleepTime = time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day(), 20, 0, 0, 0, currentTime.Location())
+					awakeTime = time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day()+1, 8, 30, 0, 0, currentTime.Location())
 				}
 
 				if serverVal == util.USSleepVal {
-					// For US, sleep at 10 AM and awake at 8 PM
-					sleepTime = time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day(), 10, 0, 0, 0, currentTime.Location())
-					awakeTime = time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day(), 20, 0, 0, 0, currentTime.Location())
+					// For US, sleep at 8 AM and awake at 8:30 PM
+					sleepTime = time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day(), 8, 0, 0, 0, currentTime.Location())
+					awakeTime = time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day(), 20, 30, 0, 0, currentTime.Location())
 				}
 
 				// Check if current time is between sleep and awake time

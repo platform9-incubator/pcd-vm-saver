@@ -29,12 +29,12 @@ func run(*cobra.Command, []string) {
 	zap.S().Info("Starting pcd-vm-saver...")
 	zap.S().Infof("Version of pcd-vm-saver being used is: %s", util.Version)
 	zap.S().Info("starting scheduled tasks")
-	vmpoll.AutoSleepVM()
-	vmpoll.AutoAwakeVM()
+	// vmpoll.AutoSleepVM()
+	// vmpoll.AutoAwakeVM()
 
 	schedule := cron.New(cron.WithChain(cron.SkipIfStillRunning(&CronSkipperLogger{})))
 
-	schedule.AddFunc("@every 15m", vmpoll.AutoSleepVM) // will hibernate/sleep clusters if there are adequate ready clusters in pool
+	schedule.AddFunc("@every 15m", vmpoll.AutoSleepVM) // will hibernate/sleep VMs if there are any.
 	schedule.AddFunc("@every 15m", vmpoll.AutoAwakeVM)
 	schedule.Start()
 	zap.S().Info("cron jobs scheduled")
@@ -57,8 +57,8 @@ func main() {
 func buildCmds() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "pcd-vm-saver",
-		Short: "pcd-vm-saver helps handling VMs efficiently by hibernating and awaking them",
-		Long:  "pcd-vm-saver helps handling VMs efficiently by hibernating and awaking them",
+		Short: "pcd-vm-saver helps handling VMs efficiently by hibernating and awake them",
+		Long:  "pcd-vm-saver helps handling VMs efficiently by hibernating and awake them",
 		Run:   run,
 	}
 

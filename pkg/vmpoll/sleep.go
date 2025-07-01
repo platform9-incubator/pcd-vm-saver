@@ -37,5 +37,10 @@ func AutoSleepVM() (string, error) {
 		successMsg += fmt.Sprintf("VM %s (ID: %s) - Current state: %s\n", server.Name, server.ID, sleepState.Status)
 	}
 
+	newQuotas := openstack.Quotas(ctx)
+	successMsg += fmt.Sprintf("Quota after sleep operations:\n")
+	successMsg += fmt.Sprintf("Cores: %d / %d\n", newQuotas.VCPUsInUse, newQuotas.VCPUsLimit)
+	successMsg += fmt.Sprintf("RAM: %d / %d\n\n", newQuotas.RAMInUse, newQuotas.RAMLimit)
+
 	return successMsg, nil
 }

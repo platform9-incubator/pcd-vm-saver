@@ -1,0 +1,27 @@
+# Binaries for programs, plugins, bin.
+#####################################
+bin
+build
+pcd-vm-server*
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# IDEs generated files #
+########################
+.vscode
+.idea
+
+# Custom #
+########################
+.env
+env.sh
+
+# Vim swap files #
+##################
+.swp

@@ -1,0 +1,14 @@
+# Add the pcd-vm-saver binary in /usr/bin/pcd-vm-saver/ directory.
+# Add this service file to /etc/systemd/system/ directory.
+[Unit]
+Description=PCD VM saver service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5s
+ExecStartPre=/usr/bin/pcd-vm-saver/pcd-vm-saver version
+ExecStart=/usr/bin/pcd-vm-saver/pcd-vm-saver
+
+[Install]
+WantedBy=multi-user.target

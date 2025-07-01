@@ -3,6 +3,7 @@ package openstack
 import (
 	"context"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/gophercloud/gophercloud/v2"
@@ -40,115 +41,98 @@ type Metrics struct {
 	VolumeGB float64
 }
 
-func FetchVMsToSleep(ctx context.Context) []serverSleepInfo {
-
+func FetchVMsToSleep(ctx context.Context) ([]serverSleepInfo, error) {
 	var sleepVMs []serverSleepInfo
 
-	// TODO: Add this to main init
 	// OpenStack authentication credentials
 	opts := gophercloud.AuthOptions{
 		IdentityEndpoint: os.Getenv("OS_AUTH_URL"),
 		Username:         os.Getenv("OS_USERNAME"),
 		Password:         os.Getenv("OS_PASSWORD"),
 		DomainName:       os.Getenv("OS_USER_DOMAIN_NAME"),
-		// Either of Domain Name or Domain ID is only required not both.
-		TenantName: os.Getenv("OS_PROJECT_NAME"),
-		TenantID:   os.Getenv("OS_PROJECT_ID"),
+		TenantName:       os.Getenv("OS_PROJECT_NAME"),
+		TenantID:         os.Getenv("OS_PROJECT_ID"),
+	}
+
+	// Validate required environment variables
+	if opts.IdentityEndpoint == "" || opts.Username == "" || opts.Password == "" {
+		return nil, fmt.Errorf("missing required OpenStack credentials")
 	}
 
 	// Authenticate
 	provider, err := openstack.AuthenticatedClient(ctx, opts)
 	if err != nil {
 		zap.S().Errorf("Authentication failed: %v", err)
-		return sleepVMs
+		return nil, fmt.Errorf("authentication failed: %v", err)
 	}
 
 	// Create compute client
 	client, err := openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
 		Region: os.Getenv("OS_REGION_NAME"),
 	})
-
 	if err != nil {
 		zap.S().Errorf("Failed to create compute client: %v", err)
-		return sleepVMs
+		return nil, fmt.Errorf("failed to create compute client: %v", err)
 	}
 
 	// Fetch all servers
 	listOpts := servers.ListOpts{
-		// TODO: P0 we are only considering active servers
 		Status: "ACTIVE", // Only fetch active servers
 	}
 
 	allPages, err := servers.List(client, listOpts).AllPages(ctx)
 	if err != nil {
 		zap.S().Errorf("Failed to list servers: %v", err)
-		return sleepVMs
+		return nil, fmt.Errorf("failed to list servers: %v", err)
 	}
 
 	// Extract server list
 	serverList, err := servers.ExtractServers(allPages)
 	if err != nil {
 		zap.S().Errorf("Failed to extract servers: %v", err)
-		return sleepVMs
+		return nil, fmt.Errorf("failed to extract servers: %v", err)
 	}
 
 	zap.S().Infof("Total servers fetched:", len(serverList))
 
 	// Filter servers by metadata
 	for _, server := range serverList {
-
-		// Only check those servers which have metadata
 		if len(server.Metadata) > 0 {
 			zap.S().Debugf("Checking server:", server.Name, "with ID:", server.ID, "and Metadata:", server.Metadata)
 
 			// Check if OverrideSleepFilter is set to true
 			if overrideSleepVal, exists := server.Metadata[util.OverrideSleepFilter]; exists && overrideSleepVal == "true" {
-				// If OverrideSleepFilter is set to true, skip this server
 				zap.S().Infof("Skipping server %s with ID %s due to OverrideSleepFilter", server.Name, server.ID)
 				continue
 			}
 
-			// check if metadata contains SleepModeFilter
+			// Check SleepModeFilter
 			var suspendMode bool
 			if sleepMode, exists := server.Metadata[util.SleepModeFilter]; exists && sleepMode == "true" {
-				// If SleepModeFilter is set to ram_preserve, we need to consider it suspend instead of shelve
 				suspendMode = true
 			}
 
-			// Check for DefaultSleepFilter or CustomSleepFilter
-
-			// Case 1: Default Sleep Filter i.e Zone based
+			// Check sleep filters
 			if serverVal, exists := server.Metadata[util.DefaultSleepFilter]; exists && (serverVal == util.IndiaSleepVal || serverVal == util.USSleepVal) {
-
-				// Verify the VM needs to seelp now its time i.e 10-10:30 PM
 				currentTime := time.Now()
-
 				var sleepTime, awakeTime time.Time
 
-				if serverVal == util.IndiaSleepVal {
-					// For India, sleep at 10 PM and awake at 8 AM
-					// Change this for testing
+				switch serverVal {
+				case util.IndiaSleepVal:
 					sleepTime = time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day(), 18, 0, 0, 0, currentTime.Location())
 					awakeTime = time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day()+1, 8, 0, 0, 0, currentTime.Location())
-				}
-
-				if serverVal == util.USSleepVal {
-					// For US, sleep at 10 AM and awake at 8 PM
+				case util.USSleepVal:
 					sleepTime = time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day(), 10, 0, 0, 0, currentTime.Location())
 					awakeTime = time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day(), 20, 0, 0, 0, currentTime.Location())
 				}
 
-				// Check if current time is between sleep and awake time
 				if currentTime.After(sleepTime) && currentTime.Before(awakeTime) {
-
-					// add AwakeTime to existing metadata
 					newMetadata := make(map[string]string)
 					if server.Metadata != nil {
 						newMetadata = server.Metadata
 					}
 
 					newMetadata[util.AwakeTimeFilter] = awakeTime.Format(time.RFC3339)
-
 					sleepVMs = append(sleepVMs, serverSleepInfo{
 						Name:        server.Name,
 						ID:          server.ID,
@@ -157,34 +141,25 @@ func FetchVMsToSleep(ctx context.Context) []serverSleepInfo {
 						NewMetadata: newMetadata,
 					})
 				}
-
-				// Case 2: Custom Sleep Filter i.e Zone based
 			} else if customSleepVal, exists := server.Metadata[util.CustomSleepFilter]; exists {
-
 				customSleepHours, err := time.ParseDuration(customSleepVal + "h")
 				if err != nil {
 					zap.S().Errorf("Invalid custom sleep value for server %s with ID %s: %v", server.Name, server.ID, err)
 					continue
 				}
+
 				currentTime := time.Now()
 				creationTime := server.Created
-
-				// Difference
 				elapsed := currentTime.Sub(creationTime)
 
-				if elapsed >= customSleepHours && int(elapsed/customSleepHours) >= 0 {
-
+				if elapsed >= customSleepHours {
 					awakeTime := currentTime.Add(customSleepHours)
-					// add AwakeTime to existing metadata
 					newMetadata := make(map[string]string)
 					if server.Metadata != nil {
 						newMetadata = server.Metadata
 					}
 
 					newMetadata[util.AwakeTimeFilter] = awakeTime.Format(time.RFC3339)
-
-					// If the elapsed time is a multiple of custom sleep hours, we can consider it for sleep
-					zap.S().Infof("Server %s with ID %s is eligible for sleep based on custom sleep filter", server.Name, server.ID)
 					sleepVMs = append(sleepVMs, serverSleepInfo{
 						Name:        server.Name,
 						ID:          server.ID,
@@ -192,35 +167,35 @@ func FetchVMsToSleep(ctx context.Context) []serverSleepInfo {
 						AwakeTime:   awakeTime,
 						NewMetadata: newMetadata,
 					})
-
-				} else {
-					// If no default or custom sleep filter, skip this server
-					continue
 				}
 			}
 		}
 	}
-	return sleepVMs
+
+	return sleepVMs, nil
 }
 
-func SleepVMs(ctx context.Context, serversInfo []serverSleepInfo) {
-	// TODO: Add this to main init
+func SleepVMs(ctx context.Context, serversInfo []serverSleepInfo) error {
 	// OpenStack authentication credentials
 	opts := gophercloud.AuthOptions{
 		IdentityEndpoint: os.Getenv("OS_AUTH_URL"),
 		Username:         os.Getenv("OS_USERNAME"),
 		Password:         os.Getenv("OS_PASSWORD"),
 		DomainName:       os.Getenv("OS_USER_DOMAIN_NAME"),
-		// Either of Domain Name or Domain ID is only required not both.
-		TenantName: os.Getenv("OS_PROJECT_NAME"),
-		TenantID:   os.Getenv("OS_PROJECT_ID"),
+		TenantName:       os.Getenv("OS_PROJECT_NAME"),
+		TenantID:         os.Getenv("OS_PROJECT_ID"),
+	}
+
+	// Validate required environment variables
+	if opts.IdentityEndpoint == "" || opts.Username == "" || opts.Password == "" {
+		return fmt.Errorf("missing required OpenStack credentials")
 	}
 
 	// Authenticate
 	provider, err := openstack.AuthenticatedClient(ctx, opts)
 	if err != nil {
 		zap.S().Errorf("Authentication failed: %v", err)
-		return
+		return fmt.Errorf("authentication failed: %v", err)
 	}
 
 	// Create compute client
@@ -229,44 +204,50 @@ func SleepVMs(ctx context.Context, serversInfo []serverSleepInfo) {
 	})
 	if err != nil {
 		zap.S().Errorf("Failed to create compute client: %v", err)
-		return
+		return fmt.Errorf("failed to create compute client: %v", err)
 	}
 
-	// TODO: Make them parallel
+	// Process servers in parallel
+	var wg sync.WaitGroup
 	for _, server := range serversInfo {
-		zap.S().Infof("Processing server %s with ID %s for sleep", server.Name, server.ID)
-		// NOTE: We need to update the metadata before the VM is suspended or shelved. We can't update it later.
+		wg.Add(1)
+		go func(server serverSleepInfo) {
+			defer wg.Done()
 
-		// Update Server metadata with AwakeTime
-		updateOpts := servers.MetadataOpts{}
-		for key, value := range server.NewMetadata {
-			updateOpts[key] = value
-		}
-
-		_, err := servers.UpdateMetadata(ctx, client, server.ID, updateOpts).Extract()
-		if err != nil {
-			zap.S().Errorf("Failed to update metadata for server %s: %v", server.Name, err)
-			//TODO: Add retry logic
-			continue
-		}
-
-		if server.SuspendMode {
-			susRes := servers.Suspend(ctx, client, server.ID)
-			if susRes.Err != nil {
-				zap.S().Errorf("Failed to suspend server %s: %v", server.Name, susRes.Err)
-				continue
+			zap.S().Infof("Processing server %s with ID %s for sleep", server.Name, server.ID)
+			
+			// Update Server metadata with AwakeTime
+			updateOpts := servers.MetadataOpts{}
+			for key, value := range server.NewMetadata {
+				updateOpts[key] = value
 			}
-		} else {
-			shlRes := servers.Shelve(ctx, client, server.ID)
-			if shlRes.Err != nil {
-				zap.S().Errorf("Failed to shelve server %s: %v", server.Name, shlRes.Err)
-				continue
-			}
-		}
 
-		// So for failed suspend and shelve by metadata is updated, we can handle that case in Awake. Awake if its not Active
-		zap.S().Infof("Server %s with ID %s is scheduled to sleep until %s", server.Name, server.ID, server.AwakeTime)
+			_, err := servers.UpdateMetadata(ctx, client, server.ID, updateOpts).Extract()
+			if err != nil {
+				zap.S().Errorf("Failed to update metadata for server %s: %v", server.Name, err)
+				// TODO: Add retry logic
+				return
+			}
+
+			// Suspend or Shelve based on SuspendMode
+			if server.SuspendMode {
+				susRes := servers.Suspend(ctx, client, server.ID)
+				if susRes.Err != nil {
+					zap.S().Errorf("Failed to suspend server %s: %v", server.Name, susRes.Err)
+					return
+				}
+			} else {
+				shlRes := servers.Shelve(ctx, client, server.ID)
+				if shlRes.Err != nil {
+					zap.S().Errorf("Failed to shelve server %s: %v", server.Name, shlRes.Err)
+					return
+				}
+			}
+		}(server)
 	}
+
+	wg.Wait()
+	return nil
 }
 
 func Quotas(ctx context.Context) {

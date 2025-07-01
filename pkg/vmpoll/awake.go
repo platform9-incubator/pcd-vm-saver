@@ -13,9 +13,11 @@ func AutoAwakeVM() {
 
 	// Fetch all VMs to Awake
 	awakeVms := openstack.GetVMsToAwake(ctx)
-
+	
 	// Awake by SleepMode UnShelve or Resume
 	openstack.AwakeVMs(ctx, awakeVms)
 
 	// TOOD: Integrate list of VMs awakened with Slack notification
+	
+	return nil // TODO: Return proper error if something fails
 }
